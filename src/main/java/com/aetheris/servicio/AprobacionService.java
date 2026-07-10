@@ -76,7 +76,7 @@ public class AprobacionService {
 
     @Transactional(readOnly = true)
     public List<FlujodeAprobacion> listarFlujosPendientes() {
-        return flujoDAO.findByEstadoOrderByFechaSolicitudAsc(EstadoFlujo.PENDIENTE);
+        return flujoDAO.findPendientesConTransaccion(EstadoFlujo.PENDIENTE);
     }
 
     private FlujodeAprobacion obtenerFlujo(String idFlujo) {
