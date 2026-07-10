@@ -772,6 +772,47 @@ aetheris-backend/
 
 ---
 
+
+## 🖥️ Integración con el Frontend (React + Vite)
+
+El frontend de AETHERIS está desarrollado con **React + Vite** y se comunica con esta API a través de un proxy inverso interno (Express + `http-proxy-middleware`).
+
+### Arquitectura de conexión
+
+```
+NAVEGADOR  →  Proxy interno (Express · Replit)  →  API REST (Spring Boot · Railway)
+              artifacts/api-server                  Context path: /api
+              • Recibe  /api/*
+              • Elimina Origin / Referer
+              • Reenvía server-to-server
+```
+
+### Por qué se necesita el proxy
+
+Spring Security valida el header `Origin` de cada petición contra `CORS_ALLOWED_ORIGINS`. Cuando el frontend en Replit llama directamente a Railway, el `Origin` del dominio de Replit no está en esa lista y la respuesta es **403 Forbidden**.
+
+El proxy resuelve esto eliminando `Origin` y `Referer` antes de reenviar, convirtiendo la llamada en una petición **server-to-server** que Spring Security trata como mismo origen.
+
+### Estado de la integración
+
+| Módulo | Estado |
+|---|---|
+| Login / Logout / Validación de token | ✅ Funciona |
+| Dashboard (ingresos, egresos, balance) | ✅ Funciona |
+| Transacciones (listado, periodo, pendientes) | ✅ Funciona |
+| Aprobaciones (listar, aprobar, rechazar) | ✅ Funciona |
+| Presupuesto | ✅ Funciona |
+| Conciliación bancaria | ✅ Funciona |
+| Auditoría | ✅ Funciona |
+| Sedes | ✅ Funciona |
+
+### ⚠️ Nota de seguridad para producción
+
+El proxy elimina `Origin` y `Referer` para evitar el bloqueo CORS del backend en desarrollo.  
+Si despliegas el proxy en un dominio fijo, agrega ese dominio a `CORS_ALLOWED_ORIGINS` en Railway y elimina la remoción de headers — así el backend aplica CORS correctamente en producción.
+
+---
+
 ## 🤝 Contribuir
 
 1. Haz fork del repositorio
