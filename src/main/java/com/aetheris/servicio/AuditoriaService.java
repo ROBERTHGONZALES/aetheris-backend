@@ -1,6 +1,7 @@
 package com.aetheris.servicio;
 
 import com.aetheris.dao.LogAuditoriaDAO;
+import com.aetheris.dto.LogAuditoriaDTO;
 import com.aetheris.modelo.LogAuditoria;
 import com.aetheris.modelo.Usuario;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,12 @@ import java.util.List;
 /**
  * Servicio transversal de auditoría.
  * Todos los demás servicios lo usan para registrar eventos de forma inmutable.
+ *
+ * Los métodos de consulta devuelven LogAuditoriaDTO en lugar de la entidad JPA
+ * para evitar el problema de usuario=null causado por el proxy Hibernate lazy:
+ * con spring.jpa.open-in-view=false el proxy no se inicializa al serializar,
+ * y Hibernate6Module lo convierte silenciosamente a null. El mapeo a DTO ocurre
+ * dentro de la transacción, cuando el usuario ya está cargado por JOIN FETCH.
  */
 @Service
 @RequiredArgsConstructor
@@ -45,20 +52,22 @@ public class AuditoriaService {
     }
 
     @Transactional(readOnly = true)
-    public List<LogAuditoria> listarPorUsuario(String usuarioId) {
-        if (usuarioId == null || usuarioId.isBlank()) {
-            return logAuditoriaDAO.findAllByOrderByFechaHoraDesc();
-        }
-        return logAuditoriaDAO.findByUsuarioIdOrderByFechaHoraDesc(usuarioId);
+    public List<LogAuditoriaDTO> listarPorUsuario(String usuarioId) {
+        List<LogAuditoria> logs = (usuarioId == null || usuarioId.isBlank())
+                ? logAuditoriaDAO.findAllByOrderByFechaHoraDesc()
+                : logAuditoriaDAO.findByUsuarioIdOrderByFechaHoraDesc(usuarioId);
+        return logs.stream().map(LogAuditoriaDTO::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<LogAuditoria> listarPorModulo(String modulo) {
-        return logAuditoriaDAO.findByModuloOrderByFechaHoraDesc(modulo);
+    public List<LogAuditoriaDTO> listarPorModulo(String modulo) {
+        return logAuditoriaDAO.findByModuloOrderByFechaHoraDesc(modulo)
+                .stream().map(LogAuditoriaDTO::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<LogAuditoria> listarPorPeriodo(LocalDateTime inicio, LocalDateTime fin) {
-        return logAuditoriaDAO.findByFechaHoraBetweenOrderByFechaHoraDesc(inicio, fin);
+    public List<LogAuditoriaDTO> listarPorPeriodo(LocalDateTime inicio, LocalDateTime fin) {
+        return logAuditoriaDAO.findByFechaHoraBetweenOrderByFechaHoraDesc(inicio, fin)
+                .stream().map(LogAuditoriaDTO::from).toList();
     }
 }
