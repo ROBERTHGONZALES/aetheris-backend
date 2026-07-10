@@ -36,6 +36,14 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
+        <!-- Jackson <-> Hibernate integration: serializes uninitialized lazy
+             proxies as null instead of crashing with
+             "Type definition error ... ByteBuddyInterceptor" -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-hibernate6</artifactId>
+        </dependency>
+
         <!-- Spring Security (autenticación y autorización) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
