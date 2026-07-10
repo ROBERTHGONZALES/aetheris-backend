@@ -773,6 +773,20 @@ aetheris-backend/
 ---
 
 
+
+## 🖥️ Repositorio del Frontend
+
+El frontend React de AETHERIS está en un repositorio separado:
+
+👉 **[github.com/ROBERTHGONZALES/aetheris-fronted](https://github.com/ROBERTHGONZALES/aetheris-fronted)**
+
+Incluye documentación detallada de:
+- Cómo conectarse a esta API (proxy Vite / proxy Express)
+- Errores frecuentes al configurar el entorno
+- Módulos, rutas y hooks que consumen cada endpoint
+
+---
+
 ## 🖥️ Integración con el Frontend (React + Vite)
 
 El frontend de AETHERIS está desarrollado con **React + Vite** y se comunica con esta API a través de un proxy inverso interno (Express + `http-proxy-middleware`).
