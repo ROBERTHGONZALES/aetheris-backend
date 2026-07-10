@@ -17,10 +17,10 @@ public class AuditoriaController {
 
     private final AuditoriaService auditoriaService;
 
-    /** GET /api/auditoria?usuarioId=xxx */
+    /** GET /api/auditoria?usuarioId=xxx (usuarioId es opcional: sin filtro lista todo) */
     @GetMapping
     public ResponseEntity<List<LogAuditoria>> listarPorUsuario(
-            @RequestParam String usuarioId) {
+            @RequestParam(required = false) String usuarioId) {
         return ResponseEntity.ok(auditoriaService.listarPorUsuario(usuarioId));
     }
 

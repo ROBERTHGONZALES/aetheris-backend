@@ -25,4 +25,6 @@ public interface TransaccionFinancieraDAO extends JpaRepository<TransaccionFinan
             String sedeId, EstadoAprobacion estado);
 
     List<TransaccionFinanciera> findByTipo(TipoTransaccion tipo);
+
+    List<TransaccionFinanciera> findAllByOrderByFechaDesc();
 }

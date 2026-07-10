@@ -37,10 +37,10 @@ public class TransaccionController {
         return ResponseEntity.ok(transaccionService.obtenerTransaccion(id));
     }
 
-    /** GET /api/transacciones?sedeId=xxx */
+    /** GET /api/transacciones?sedeId=xxx (sedeId es opcional: sin filtro lista todas) */
     @GetMapping
     public ResponseEntity<List<TransaccionFinanciera>> listarPorSede(
-            @RequestParam String sedeId) {
+            @RequestParam(required = false) String sedeId) {
         return ResponseEntity.ok(transaccionService.listarTransaccionesPorSede(sedeId));
     }
 

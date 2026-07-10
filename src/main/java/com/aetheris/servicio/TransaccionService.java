@@ -60,6 +60,9 @@ public class TransaccionService {
 
     @Transactional(readOnly = true)
     public List<TransaccionFinanciera> listarTransaccionesPorSede(String idSede) {
+        if (idSede == null || idSede.isBlank()) {
+            return transaccionDAO.findAllByOrderByFechaDesc();
+        }
         return transaccionDAO.findBySedeId(idSede);
     }
 

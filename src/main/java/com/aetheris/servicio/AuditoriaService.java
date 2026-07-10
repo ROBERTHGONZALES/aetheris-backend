@@ -46,6 +46,9 @@ public class AuditoriaService {
 
     @Transactional(readOnly = true)
     public List<LogAuditoria> listarPorUsuario(String usuarioId) {
+        if (usuarioId == null || usuarioId.isBlank()) {
+            return logAuditoriaDAO.findAllByOrderByFechaHoraDesc();
+        }
         return logAuditoriaDAO.findByUsuarioIdOrderByFechaHoraDesc(usuarioId);
     }
 

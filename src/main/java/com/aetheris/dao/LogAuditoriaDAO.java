@@ -18,4 +18,6 @@ public interface LogAuditoriaDAO extends JpaRepository<LogAuditoria, String> {
             LocalDateTime inicio, LocalDateTime fin);
 
     List<LogAuditoria> findByAccionContainingIgnoreCase(String accion);
+
+    List<LogAuditoria> findAllByOrderByFechaHoraDesc();
 }
