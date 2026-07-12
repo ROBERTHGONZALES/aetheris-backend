@@ -2,7 +2,7 @@ package com.aetheris.servicio;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -14,9 +14,9 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 /**
- * Cliente HTTP minimalista para la API REST de Gemini (Google AI Studio).
- * No usa un SDK: llama directamente a generativelanguage.googleapis.com,
- * ya que la app solo necesita generateContent con function calling.
+ * Cliente HTTP para la API de Groq (compatible con OpenAI).
+ * Reemplaza la integración anterior con Google Gemini.
+ * Endpoint: https://api.groq.com/openai/v1/chat/completions
  */
 @Component
 public class GeminiClient {
@@ -25,46 +25,59 @@ public class GeminiClient {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    @Value("${gemini.api.key:}")
+    @Value("${groq.api.key:}")
     private String apiKey;
 
-    @Value("${gemini.model:gemini-2.0-flash}")
+    @Value("${groq.model:llama-3.3-70b-versatile}")
     private String model;
 
     /**
-     * Envía un cuerpo de solicitud generateContent ya construido (contents,
-     * systemInstruction, tools) y devuelve el JSON de respuesta de Gemini.
+     * Envía una lista de mensajes (formato OpenAI) con herramientas a Groq
+     * y devuelve el JSON de respuesta completo.
      */
-    public JsonNode generateContent(ObjectNode requestBody, ObjectMapper mapper) {
+    public JsonNode chat(ArrayNode messages, ArrayNode tools, ObjectMapper mapper) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException(
-                    "GEMINI_API_KEY no está configurada en el servidor. ARIA no puede responder.");
+                    "GROQ_API_KEY no está configurada en el servidor. ARIA no puede responder.");
         }
 
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                + model + ":generateContent?key=" + apiKey;
-
         try {
+            com.fasterxml.jackson.databind.node.ObjectNode body =
+                    mapper.createObjectNode();
+            body.put("model", model);
+            body.set("messages", messages);
+            body.set("tools", tools);
+            body.put("temperature", 0.1);
+            body.put("max_tokens", 4096);
+
+            String requestJson = mapper.writeValueAsString(body);
+
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(45))
+                    .uri(URI.create("https://api.groq.com/openai/v1/chat/completions"))
+                    .timeout(Duration.ofSeconds(60))
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(requestBody)))
+                    .header("Authorization", "Bearer " + apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(requestJson))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response =
+                    httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
             JsonNode json = mapper.readTree(response.body());
 
             if (response.statusCode() >= 400) {
                 String message = json.path("error").path("message").asText(response.body());
-                throw new RuntimeException("Gemini API error (" + response.statusCode() + "): " + message);
+                throw new RuntimeException(
+                        "Groq API error (" + response.statusCode() + "): " + message);
             }
+
             return json;
+
         } catch (IOException e) {
-            throw new RuntimeException("Error al llamar a Gemini: " + e.getMessage(), e);
+            throw new RuntimeException("Error al llamar a Groq: " + e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Llamada a Gemini interrumpida", e);
+            throw new RuntimeException("Llamada a Groq interrumpida", e);
         }
     }
 }
