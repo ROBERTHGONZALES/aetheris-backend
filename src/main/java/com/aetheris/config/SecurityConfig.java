@@ -26,7 +26,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
 
-    @Value("${aetheris.cors.allowed-origins:http://localhost:3000}")
+    @Value("${aetheris.cors.allowed-origins:http://localhost:3000,http://localhost:5173}")
     private String allowedOrigins;
 
     @Bean
@@ -41,7 +41,6 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health").permitAll()
                 .anyRequest().authenticated()
             )
-            // Registrar el filtro JWT antes del filtro de autenticación estándar
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -54,10 +53,20 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+
+        // setAllowedOriginPatterns soporta wildcards (e.g. https://*.replit.dev)
+        // Se incluyen los orígenes configurados + Replit (dev y producción)
+        List<String> patterns = new java.util.ArrayList<>(
+            Arrays.asList(allowedOrigins.split(","))
+        );
+        patterns.add("https://*.replit.dev");
+        patterns.add("https://*.repl.co");
+        cfg.setAllowedOriginPatterns(patterns);
+
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
         cfg.setAllowCredentials(true);
+
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", cfg);
         return src;
