@@ -116,8 +116,14 @@ public class AriaService {
                   o ingreso usa "resumen_por_categoria". Estas herramientas devuelven datos
                   agrupados del historial completo.
                 - Presenta tablas en formato Markdown cuando la respuesta tenga más de 3 filas.
-                - Sé conciso. Si una herramienta falla, explica el problema brevemente sin
-                  exponer detalles técnicos internos.
+                - Después de presentar cualquier tabla con datos, SIEMPRE añade un análisis
+                  interpretativo: identifica el mes/período con más ingresos y más egresos,
+                  calcula el balance neto (ingresos - egresos) por período si tienes ambos datos,
+                  señala tendencias (crecimiento, caída, picos), y concluye con una observación
+                  financiera relevante para la organización. No te limites a mostrar los datos —
+                  tu valor está en interpretarlos.
+                - Sé conciso pero completo. Si una herramienta falla, explica el problema
+                  brevemente sin exponer detalles técnicos internos.
                 - Solo puedes usar las herramientas asignadas a tu rol (%s). No improvises
                   información que no provenga de una herramienta disponible.
                 """, nombre, rol, rol);
