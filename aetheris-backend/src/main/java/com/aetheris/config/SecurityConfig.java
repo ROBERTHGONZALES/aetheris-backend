@@ -36,6 +36,16 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(sm ->
                 sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // Por defecto Spring Security fuerza "Cache-Control: no-cache, no-store,
+            // max-age=0, must-revalidate" en TODAS las respuestas, sobreescribiendo
+            // cualquier Cache-Control que pongamos manualmente en un controller.
+            // Esto rompe el streaming SSE de /aria/chat: Railway (y otros proxies/CDN)
+            // solo evitan bufferizar/comprimir una respuesta en streaming si ven
+            // "Cache-Control: no-transform" — que el header por defecto de Spring
+            // Security estaba borrando. Se desactiva el writer automático y cada
+            // controller pone el Cache-Control que necesite (AriaController ya
+            // pone "no-cache, no-transform" explícitamente).
+            .headers(headers -> headers.cacheControl(cache -> cache.disable()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/login").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
