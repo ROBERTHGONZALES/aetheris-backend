@@ -1,5 +1,6 @@
 package com.aetheris.servicio;
 
+import com.aetheris.dao.UsuarioDAO;
 import com.aetheris.dto.AriaHistoryMessage;
 import com.aetheris.modelo.Usuario;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -40,6 +41,7 @@ public class AriaService {
     private static final int MAX_TOOL_LOOPS = 5;
 
     private final GeminiClient geminiClient;   // cliente Groq (nombre heredado)
+    private final UsuarioDAO usuarioDAO;
     private final SedeService sedeService;
     private final TransaccionService transaccionService;
     private final AprobacionService aprobacionService;
@@ -132,12 +134,18 @@ public class AriaService {
     public void chat(String userMessage, List<AriaHistoryMessage> history,
                      Usuario usuario, SseEmitter emitter) {
         try {
+            // El usuario puede llegar como proxy detached (viene de Sesion::getUsuario
+            // en otro hilo/sesión). Recargamos por ID — el ID siempre es accesible
+            // en un proxy — para tenerlo completamente inicializado en esta sesión.
+            final Usuario u = usuarioDAO.findById(usuario.getId())
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
             ArrayNode messages = mapper.createArrayNode();
 
             // Sistema con contexto del usuario y su rol
             ObjectNode systemMsg = mapper.createObjectNode();
             systemMsg.put("role", "system");
-            systemMsg.put("content", buildSystemInstruction(usuario));
+            systemMsg.put("content", buildSystemInstruction(u));
             messages.add(systemMsg);
 
             // Historial previo
@@ -157,7 +165,7 @@ public class AriaService {
             messages.add(userMsg);
 
             // Herramientas filtradas por rol
-            String    rol   = usuario.getRol().getNombre();
+            String    rol   = u.getRol().getNombre();
             ArrayNode tools = buildTools(rol);
 
             // ── Bucle de function calling ───────────────────────────────────
@@ -208,7 +216,7 @@ public class AriaService {
 
                     try {
                         JsonNode args   = mapper.readTree(argsStr);
-                        Object   result = executeTool(toolName, args, usuario);
+                        Object   result = executeTool(toolName, args, u);
                         toolResultMsg.put("content", mapper.writeValueAsString(result));
                     } catch (Exception e) {
                         log.warn("ARIA tool '{}' failed: {}", toolName, e.getMessage());
