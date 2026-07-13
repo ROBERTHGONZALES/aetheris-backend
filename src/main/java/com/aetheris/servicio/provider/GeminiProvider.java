@@ -16,6 +16,9 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Proveedor de respaldo #1: Google Gemini.
@@ -82,6 +85,122 @@ public class GeminiProvider implements AiProvider {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Llamada a Gemini interrumpida", e);
+        }
+    }
+
+    /**
+     * Streaming real vía el endpoint streamGenerateContent (alt=sse) de Gemini.
+     * El formato de cada chunk es distinto al de OpenAI (candidates[0].content.parts
+     * en vez de choices[0].delta), así que no se puede reusar OpenAiStreamUtil —
+     * se parsea aquí mismo y se llama a onDelta() por cada fragmento de texto.
+     */
+    @Override
+    public JsonNode chatStream(ArrayNode messages, ArrayNode tools, ObjectMapper mapper,
+                                Consumer<String> onDelta) {
+        if (!isAvailable()) {
+            throw new RuntimeException("GEMINI_API_KEY no está configurada");
+        }
+        try {
+            ObjectNode geminiBody = toGeminiRequest(messages, tools, mapper);
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                    + model + ":streamGenerateContent?alt=sse&key=" + apiKey;
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(60))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(geminiBody)))
+                    .build();
+
+            HttpResponse<Stream<String>> response =
+                    httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
+
+            if (response.statusCode() >= 400) {
+                String errBody = response.body().collect(Collectors.joining("\n"));
+                throw new RuntimeException("Gemini error (" + response.statusCode() + "): " + errBody);
+            }
+
+            StringBuilder fullText = new StringBuilder();
+            ArrayNode toolCalls = mapper.createArrayNode();
+            String finishReason = "stop";
+
+            var it = response.body().iterator();
+            while (it.hasNext()) {
+                String line = it.next();
+                if (line == null || line.isBlank() || !line.startsWith("data:")) continue;
+
+                String raw = line.substring(5).trim();
+                if (raw.isEmpty() || raw.equals("[DONE]")) continue;
+
+                JsonNode chunk;
+                try {
+                    chunk = mapper.readTree(raw);
+                } catch (Exception e) {
+                    continue; // línea parcial/mal formada — se ignora
+                }
+
+                JsonNode candidate = chunk.path("candidates").path(0);
+                JsonNode parts = candidate.path("content").path("parts");
+
+                if (parts.isArray()) {
+                    for (JsonNode part : parts) {
+                        if (part.has("text")) {
+                            String textDelta = part.path("text").asText("");
+                            if (!textDelta.isEmpty()) {
+                                fullText.append(textDelta);
+                                onDelta.accept(textDelta);
+                            }
+                        } else if (part.has("functionCall")) {
+                            JsonNode fc = part.path("functionCall");
+                            ObjectNode tc = mapper.createObjectNode();
+                            tc.put("id", "call_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8));
+                            tc.put("type", "function");
+                            ObjectNode func = mapper.createObjectNode();
+                            func.put("name", fc.path("name").asText());
+                            try {
+                                func.put("arguments", mapper.writeValueAsString(fc.path("args")));
+                            } catch (Exception e) {
+                                func.put("arguments", "{}");
+                            }
+                            tc.set("function", func);
+                            toolCalls.add(tc);
+                        }
+                    }
+                }
+
+                String fr = candidate.path("finishReason").asText("");
+                if (!fr.isEmpty()) {
+                    finishReason = toolCalls.isEmpty() ? "stop" : "tool_calls";
+                }
+            }
+
+            ObjectNode message = mapper.createObjectNode();
+            message.put("role", "assistant");
+            if (fullText.length() == 0) {
+                message.putNull("content");
+            } else {
+                message.put("content", fullText.toString());
+            }
+            if (!toolCalls.isEmpty()) {
+                message.set("tool_calls", toolCalls);
+            }
+
+            ObjectNode choiceOut = mapper.createObjectNode();
+            choiceOut.put("finish_reason", finishReason);
+            choiceOut.set("message", message);
+
+            ArrayNode choicesArr = mapper.createArrayNode();
+            choicesArr.add(choiceOut);
+
+            ObjectNode result = mapper.createObjectNode();
+            result.set("choices", choicesArr);
+            return result;
+
+        } catch (IOException e) {
+            throw new RuntimeException("Error de red al llamar a Gemini: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Llamada a Gemini interrumpida (stream)", e);
         }
     }
 
