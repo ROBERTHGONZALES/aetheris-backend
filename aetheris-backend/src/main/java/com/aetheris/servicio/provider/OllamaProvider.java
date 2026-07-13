@@ -22,17 +22,10 @@ import java.time.Duration;
  *
  * Configuración en Railway:
  *   OLLAMA_BASE_URL  → URL pública del túnel, ej: https://xyz.trycloudflare.com
- *   OLLAMA_MODEL     → modelo a usar (default: llama3.2:3b)
+ *   OLLAMA_MODEL     → modelo a usar (default: qwen2.5:7b)
  *
  * Si OLLAMA_BASE_URL no está configurada, el proveedor se deshabilita
  * automáticamente y el orquestador lo salta sin error.
- *
- * Cómo activar en local:
- *   1. ollama serve                                    (inicia Ollama en :11434)
- *   2. ollama pull llama3.2:3b                         (descarga el modelo)
- *   3. cloudflared tunnel --url http://localhost:11434  (genera URL pública)
- *   4. Poner esa URL en OLLAMA_BASE_URL en Railway
- *   5. Agregar "ollama" al final de ARIA_PROVIDER_ORDER en Railway
  */
 @Component
 public class OllamaProvider implements AiProvider {
@@ -44,7 +37,7 @@ public class OllamaProvider implements AiProvider {
     @Value("${ollama.base.url:}")
     private String baseUrl;
 
-    @Value("${ollama.model:llama3.2:3b}")
+    @Value("${ollama.model:qwen2.5:7b}")
     private String model;
 
     @Override
@@ -71,7 +64,7 @@ public class OllamaProvider implements AiProvider {
             body.put("temperature", 0.1);
             body.put("stream", false);
 
-            // Ollama soporta tool calling solo en modelos recientes (llama3.1+, llama3.2+).
+            // Ollama soporta tool calling solo en modelos recientes (llama3.1+, qwen2.5+).
             // Solo incluir tools si hay herramientas disponibles.
             if (tools != null && !tools.isEmpty()) {
                 body.set("tools", tools);
@@ -87,10 +80,24 @@ public class OllamaProvider implements AiProvider {
 
             HttpResponse<String> response =
                     httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            JsonNode json = mapper.readTree(response.body());
 
+            String rawBody = response.body();
+
+            // Intentar parsear como JSON; si falla, construir error legible
+            JsonNode json;
+            try {
+                json = mapper.readTree(rawBody);
+            } catch (Exception parseEx) {
+                // Respuesta no-JSON (HTML de Cloudflare, texto plano, etc.)
+                String preview = rawBody.length() > 200 ? rawBody.substring(0, 200) : rawBody;
+                throw new RuntimeException(
+                        "Ollama devolvió una respuesta no-JSON (HTTP " + response.statusCode()
+                        + "). ¿El túnel está activo y el modelo está descargado? Respuesta: " + preview);
+            }
+
+            // Verificar status HTTP DESPUÉS de parsear (Ollama devuelve JSON incluso en errores)
             if (response.statusCode() >= 400) {
-                String msg = json.path("error").path("message").asText(response.body());
+                String msg = json.path("error").asText(rawBody);
                 throw new RuntimeException("Ollama error (" + response.statusCode() + "): " + msg);
             }
 
