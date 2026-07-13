@@ -40,7 +40,7 @@ public class AriaService {
     private static final Logger log = LoggerFactory.getLogger(AriaService.class);
     private static final int MAX_TOOL_LOOPS = 5;
 
-    private final GeminiClient geminiClient;   // cliente Groq (nombre heredado)
+    private final AriaOrchestratorService orchestratorService;
     private final UsuarioDAO usuarioDAO;
     private final SedeService sedeService;
     private final TransaccionService transaccionService;
@@ -171,7 +171,7 @@ public class AriaService {
             // ── Bucle de function calling ───────────────────────────────────
             int loops = 0;
             while (true) {
-                JsonNode response  = geminiClient.chat(messages, tools, mapper);
+                JsonNode response  = orchestratorService.chat(messages, tools, mapper);
                 JsonNode choice    = response.path("choices").path(0);
                 JsonNode message   = choice.path("message");
                 JsonNode toolCalls = message.path("tool_calls");

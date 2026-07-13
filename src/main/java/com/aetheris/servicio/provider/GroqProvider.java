@@ -1,8 +1,9 @@
-package com.aetheris.servicio;
+package com.aetheris.servicio.provider;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -14,12 +15,12 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 /**
- * Cliente HTTP para la API de Groq (compatible con OpenAI).
- * Reemplaza la integración anterior con Google Gemini.
- * Endpoint: https://api.groq.com/openai/v1/chat/completions
+ * Proveedor principal: Groq (API compatible con OpenAI).
+ * Usa llama-3.3-70b-versatile por defecto.
+ * Variable de entorno requerida en Railway: GROQ_API_KEY
  */
 @Component
-public class GeminiClient {
+public class GroqProvider implements AiProvider {
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -31,50 +32,45 @@ public class GeminiClient {
     @Value("${groq.model:llama-3.3-70b-versatile}")
     private String model;
 
-    /**
-     * Envía una lista de mensajes (formato OpenAI) con herramientas a Groq
-     * y devuelve el JSON de respuesta completo.
-     */
-    public JsonNode chat(ArrayNode messages, ArrayNode tools, ObjectMapper mapper) {
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException(
-                    "GROQ_API_KEY no está configurada en el servidor. ARIA no puede responder.");
-        }
+    @Override
+    public String getName() { return "Groq"; }
 
+    @Override
+    public boolean isAvailable() { return apiKey != null && !apiKey.isBlank(); }
+
+    @Override
+    public JsonNode chat(ArrayNode messages, ArrayNode tools, ObjectMapper mapper) {
+        if (!isAvailable()) {
+            throw new RuntimeException("GROQ_API_KEY no está configurada");
+        }
         try {
-            com.fasterxml.jackson.databind.node.ObjectNode body =
-                    mapper.createObjectNode();
+            ObjectNode body = mapper.createObjectNode();
             body.put("model", model);
             body.set("messages", messages);
             body.set("tools", tools);
             body.put("temperature", 0.1);
             body.put("max_tokens", 4096);
 
-            String requestJson = mapper.writeValueAsString(body);
-
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("https://api.groq.com/openai/v1/chat/completions"))
                     .timeout(Duration.ofSeconds(60))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + apiKey)
-                    .POST(HttpRequest.BodyPublishers.ofString(requestJson))
+                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                     .build();
 
             HttpResponse<String> response =
                     httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
             JsonNode json = mapper.readTree(response.body());
 
             if (response.statusCode() >= 400) {
-                String message = json.path("error").path("message").asText(response.body());
-                throw new RuntimeException(
-                        "Groq API error (" + response.statusCode() + "): " + message);
+                String msg = json.path("error").path("message").asText(response.body());
+                throw new RuntimeException("Groq error (" + response.statusCode() + "): " + msg);
             }
-
             return json;
 
         } catch (IOException e) {
-            throw new RuntimeException("Error al llamar a Groq: " + e.getMessage(), e);
+            throw new RuntimeException("Error de red al llamar a Groq: " + e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Llamada a Groq interrumpida", e);
