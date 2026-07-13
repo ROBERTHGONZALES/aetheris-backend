@@ -177,7 +177,20 @@ public class AriaService {
             // ── Bucle de function calling ───────────────────────────────────
             int loops = 0;
             while (true) {
-                JsonNode response  = orchestratorService.chat(messages, tools, mapper);
+                // "streamed" acumula lo que ya se envió como fragmentos en vivo
+                // (solo proveedores con streaming real, ej. Ollama). Si queda
+                // vacío, el proveedor usado no soporta streaming (Groq/Gemini/
+                // OpenRouter) y el texto completo se manda de una sola vez,
+                // como antes.
+                StringBuilder streamed = new StringBuilder();
+                JsonNode response = orchestratorService.chatStream(messages, tools, mapper, chunk -> {
+                    streamed.append(chunk);
+                    try {
+                        sendEvent(emitter, "text", Map.of("text", chunk));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
                 JsonNode choice    = response.path("choices").path(0);
                 JsonNode message   = choice.path("message");
                 JsonNode toolCalls = message.path("tool_calls");
@@ -187,7 +200,8 @@ public class AriaService {
                 if (!hasToolCalls || loops >= MAX_TOOL_LOOPS) {
                     // Respuesta final de texto
                     String text = message.path("content").asText("");
-                    if (!text.isBlank()) {
+                    if (streamed.length() == 0 && !text.isBlank()) {
+                        // No hubo streaming en vivo (proveedor síncrono) — mandar todo junto.
                         sendEvent(emitter, "text", Map.of("text", text));
                     }
                     sendEvent(emitter, "done", Map.of("done", true));

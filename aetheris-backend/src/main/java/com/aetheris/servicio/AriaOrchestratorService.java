@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -66,6 +67,40 @@ public class AriaOrchestratorService {
             try {
                 log.info("ARIA → proveedor activo: {}", provider.getName());
                 return provider.chat(messages, tools, mapper);
+            } catch (Exception e) {
+                String err = provider.getName() + ": " + e.getMessage();
+                log.warn("ARIA fallback — {} falló, probando siguiente. Causa: {}", provider.getName(), e.getMessage());
+                errors.add(err);
+            }
+        }
+
+        throw new RuntimeException(
+                "Todos los proveedores de IA fallaron. Detalles: " + String.join(" | ", errors));
+    }
+
+    /**
+     * Igual que {@link #chat}, pero en modo streaming: {@code onToken} se
+     * invoca con cada fragmento de texto a medida que el proveedor activo lo
+     * va generando (si lo soporta). Mantiene el mismo mecanismo de fallback
+     * entre proveedores.
+     */
+    public JsonNode chatStream(ArrayNode messages, ArrayNode tools, ObjectMapper mapper,
+                                Consumer<String> onToken) {
+        List<String> errors = new ArrayList<>();
+
+        for (String name : providerOrder) {
+            AiProvider provider = providerByName.get(name);
+            if (provider == null) {
+                log.debug("Proveedor '{}' desconocido en ARIA_PROVIDER_ORDER, ignorando.", name);
+                continue;
+            }
+            if (!provider.isAvailable()) {
+                log.debug("Proveedor '{}' sin API key configurada, saltando.", provider.getName());
+                continue;
+            }
+            try {
+                log.info("ARIA (stream) → proveedor activo: {}", provider.getName());
+                return provider.chatStream(messages, tools, mapper, onToken);
             } catch (Exception e) {
                 String err = provider.getName() + ": " + e.getMessage();
                 log.warn("ARIA fallback — {} falló, probando siguiente. Causa: {}", provider.getName(), e.getMessage());
