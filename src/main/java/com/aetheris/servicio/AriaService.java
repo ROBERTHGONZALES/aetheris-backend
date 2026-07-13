@@ -13,6 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -121,6 +123,12 @@ public class AriaService {
 
     // ── Punto de entrada principal ─────────────────────────────────────────
 
+    /**
+     * Mantiene la sesión de Hibernate abierta durante todo el chat para que
+     * las relaciones LAZY de las entidades (usuarioRegistro, etc.) puedan
+     * inicializarse cuando Jackson las serializa fuera del método de servicio.
+     */
+    @Transactional(readOnly = true)
     public void chat(String userMessage, List<AriaHistoryMessage> history,
                      Usuario usuario, SseEmitter emitter) {
         try {
