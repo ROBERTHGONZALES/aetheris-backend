@@ -8,14 +8,17 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 
+/** Bandeja de aprobaciones: solo ADMIN y APROBADOR pueden ver/resolver. */
 @RestController
 @RequestMapping("/aprobaciones")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','APROBADOR')")
 public class AprobacionController {
 
     private final AprobacionService aprobacionService;

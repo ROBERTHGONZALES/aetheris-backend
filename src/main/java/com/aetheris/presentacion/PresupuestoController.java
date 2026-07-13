@@ -7,6 +7,7 @@ import com.aetheris.servicio.PresupuestoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,7 +20,8 @@ public class PresupuestoController {
     private final PresupuestoService presupuestoService;
     private final AutenticacionService autenticacionService;
 
-    /** POST /api/presupuesto */
+    /** POST /api/presupuesto — solo quien administra el presupuesto (ADMIN, CONTADOR). */
+    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     @PostMapping
     public ResponseEntity<PartidaPresupuestaria> crear(
             @RequestBody PartidaPresupuestaria partida,

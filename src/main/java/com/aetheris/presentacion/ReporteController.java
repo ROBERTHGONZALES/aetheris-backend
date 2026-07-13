@@ -7,14 +7,17 @@ import com.aetheris.servicio.AutenticacionService;
 import com.aetheris.servicio.ReporteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+/** Generación de reportes: ADMIN, CONTADOR y AUDITOR (APROBADOR no genera reportes). */
 @RestController
 @RequestMapping("/reportes")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','CONTADOR','AUDITOR')")
 public class ReporteController {
 
     private final ReporteService reporteService;

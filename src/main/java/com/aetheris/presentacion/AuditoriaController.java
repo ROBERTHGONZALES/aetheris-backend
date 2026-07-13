@@ -5,14 +5,17 @@ import com.aetheris.servicio.AuditoriaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+/** Rastro de auditoría: solo ADMIN y AUDITOR pueden consultarlo. */
 @RestController
 @RequestMapping("/auditoria")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','AUDITOR')")
 public class AuditoriaController {
 
     private final AuditoriaService auditoriaService;

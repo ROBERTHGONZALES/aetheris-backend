@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -21,7 +22,8 @@ public class TransaccionController {
     private final TransaccionService transaccionService;
     private final AutenticacionService autenticacionService;
 
-    /** POST /api/transacciones */
+    /** POST /api/transacciones — solo quien registra movimientos (ADMIN, CONTADOR). */
+    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     @PostMapping
     public ResponseEntity<TransaccionFinanciera> registrar(
             @RequestBody TransaccionFinanciera tx,

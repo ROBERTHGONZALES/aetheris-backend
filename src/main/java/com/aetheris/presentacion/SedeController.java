@@ -7,15 +7,18 @@ import com.aetheris.servicio.SedeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+/** Gestión de sedes y límites de aprobación: exclusivo de ADMIN. */
 @RestController
 @RequestMapping("/sedes")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class SedeController {
 
     private final SedeService sedeService;

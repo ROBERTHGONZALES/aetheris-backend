@@ -11,20 +11,24 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 
+/** Conciliación bancaria: gestionada por ADMIN/CONTADOR; AUDITOR solo lectura. */
 @RestController
 @RequestMapping("/conciliacion")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','CONTADOR','AUDITOR')")
 public class ConciliacionController {
 
     private final ConciliacionService conciliacionService;
     private final AutenticacionService autenticacionService;
 
     /** POST /api/conciliacion */
+    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     @PostMapping
     public ResponseEntity<ConciliacionBancaria> iniciar(
             @RequestParam String cuentaId,
@@ -36,6 +40,7 @@ public class ConciliacionController {
     }
 
     /** POST /api/conciliacion/{id}/movimientos */
+    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     @PostMapping("/{id}/movimientos")
     public ResponseEntity<List<MovimientoBancario>> importarMovimientos(
             @PathVariable String id,
@@ -44,6 +49,7 @@ public class ConciliacionController {
     }
 
     /** POST /api/conciliacion/{id}/cruce */
+    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     @PostMapping("/{id}/cruce")
     public ResponseEntity<?> ejecutarCruce(@PathVariable String id) {
         conciliacionService.ejecutarCruce(id);
@@ -57,6 +63,7 @@ public class ConciliacionController {
     }
 
     /** PUT /api/conciliacion/discrepancias/{discId}/resolver */
+    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     @PutMapping("/discrepancias/{discId}/resolver")
     public ResponseEntity<?> resolverDiscrepancia(
             @PathVariable String discId,

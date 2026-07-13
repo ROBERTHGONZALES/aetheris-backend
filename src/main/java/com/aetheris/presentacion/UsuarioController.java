@@ -9,14 +9,17 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 
+/** Gestión de usuarios y roles: exclusivo de ADMIN. */
 @RestController
 @RequestMapping("/usuarios")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
@@ -64,9 +67,12 @@ public class UsuarioController {
         return ResponseEntity.ok(Map.of("mensaje", "Usuario desactivado"));
     }
 
-    /** GET /api/usuarios?rolId=xxx */
+    /** GET /api/usuarios?rolId=xxx (rolId es opcional: sin filtro lista todos) */
     @GetMapping
-    public ResponseEntity<List<Usuario>> listarPorRol(@RequestParam String rolId) {
+    public ResponseEntity<List<Usuario>> listarPorRol(@RequestParam(required = false) String rolId) {
+        if (rolId == null || rolId.isBlank()) {
+            return ResponseEntity.ok(usuarioService.listarTodos());
+        }
         return ResponseEntity.ok(usuarioService.listarUsuariosPorRol(rolId));
     }
 
