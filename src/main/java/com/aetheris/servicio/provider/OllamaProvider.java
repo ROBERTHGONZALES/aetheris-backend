@@ -13,6 +13,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Proveedor de respaldo local: Ollama (API compatible con OpenAI).
@@ -102,6 +105,55 @@ public class OllamaProvider implements AiProvider {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Llamada a Ollama interrumpida", e);
+        }
+    }
+
+    @Override
+    public JsonNode chatStream(ArrayNode messages, ArrayNode tools, ObjectMapper mapper,
+                                Consumer<String> onDelta) {
+        if (!isAvailable()) {
+            throw new RuntimeException("OLLAMA_BASE_URL no está configurada");
+        }
+
+        String normalizedBase = baseUrl.endsWith("/")
+                ? baseUrl.substring(0, baseUrl.length() - 1)
+                : baseUrl;
+
+        try {
+            ObjectNode body = mapper.createObjectNode();
+            body.put("model", model);
+            body.set("messages", messages);
+            body.put("temperature", 0.1);
+            body.put("stream", true); // streaming real — antes era false
+
+            if (tools != null && !tools.isEmpty()) {
+                body.set("tools", tools);
+            }
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(normalizedBase + "/v1/chat/completions"))
+                    .timeout(Duration.ofSeconds(180)) // CPU puede ser lento generando token a token
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer ollama")
+                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+                    .build();
+
+            HttpResponse<Stream<String>> response =
+                    httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
+
+            if (response.statusCode() >= 400) {
+                String errBody = response.body().collect(Collectors.joining("\n"));
+                throw new RuntimeException("Ollama error (" + response.statusCode() + "): " + errBody);
+            }
+
+            return OpenAiStreamUtil.consume(response.body(), mapper, onDelta);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Error de red al llamar a Ollama (¿el túnel está activo?): "
+                    + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Llamada a Ollama interrumpida (stream)", e);
         }
     }
 }

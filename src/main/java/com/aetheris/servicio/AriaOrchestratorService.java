@@ -76,4 +76,43 @@ public class AriaOrchestratorService {
         throw new RuntimeException(
                 "Todos los proveedores de IA fallaron. Detalles: " + String.join(" | ", errors));
     }
+
+    /**
+     * Igual que chat(), pero transmite el texto en tiempo real vía onDelta
+     * a medida que el proveedor lo genera (streaming real token por token).
+     *
+     * Nota sobre fallback: si un proveedor falla a mitad de un stream (ya
+     * transmitió texto parcial) y se pasa al siguiente, el texto ya enviado
+     * al cliente no se puede "retirar" — es una limitación aceptada, ya que
+     * en la práctica los fallos (429, key inválida, timeout de conexión)
+     * ocurren antes de que llegue el primer byte, no a mitad de generación.
+     */
+    public JsonNode chatStream(ArrayNode messages, ArrayNode tools, ObjectMapper mapper,
+                                java.util.function.Consumer<String> onDelta) {
+        List<String> errors = new ArrayList<>();
+
+        for (String name : providerOrder) {
+            AiProvider provider = providerByName.get(name);
+            if (provider == null) {
+                log.debug("Proveedor '{}' desconocido en ARIA_PROVIDER_ORDER, ignorando.", name);
+                continue;
+            }
+            if (!provider.isAvailable()) {
+                log.debug("Proveedor '{}' sin API key configurada, saltando.", provider.getName());
+                continue;
+            }
+            try {
+                log.info("ARIA → proveedor activo (stream): {}", provider.getName());
+                return provider.chatStream(messages, tools, mapper, onDelta);
+            } catch (Exception e) {
+                String err = provider.getName() + ": " + e.getMessage();
+                log.warn("ARIA fallback (stream) — {} falló, probando siguiente. Causa: {}",
+                        provider.getName(), e.getMessage());
+                errors.add(err);
+            }
+        }
+
+        throw new RuntimeException(
+                "Todos los proveedores de IA fallaron. Detalles: " + String.join(" | ", errors));
+    }
 }

@@ -21,4 +21,24 @@ public interface AiProvider {
      * OpenAI chat/completions (choices[0].message…).
      */
     JsonNode chat(ArrayNode messages, ArrayNode tools, ObjectMapper mapper);
+
+    /**
+     * Igual que chat(), pero invoca onDelta(texto) por cada fragmento de
+     * contenido recibido del proveedor a medida que llega, permitiendo
+     * streaming real hacia el cliente (SSE token por token).
+     *
+     * Implementación por defecto (fallback): no transmite en partes, llama
+     * a chat() y entrega todo el texto de una sola vez al final. La usan
+     * los proveedores que aún no implementan streaming real (ej. Gemini,
+     * OpenRouter). Groq y Ollama la sobrescriben con streaming verdadero.
+     */
+    default JsonNode chatStream(ArrayNode messages, ArrayNode tools, ObjectMapper mapper,
+                                 java.util.function.Consumer<String> onDelta) {
+        JsonNode response = chat(messages, tools, mapper);
+        String text = response.path("choices").path(0).path("message").path("content").asText("");
+        if (!text.isBlank()) {
+            onDelta.accept(text);
+        }
+        return response;
+    }
 }

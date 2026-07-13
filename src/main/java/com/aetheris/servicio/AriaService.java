@@ -177,7 +177,16 @@ public class AriaService {
             // ── Bucle de function calling ───────────────────────────────────
             int loops = 0;
             while (true) {
-                JsonNode response  = orchestratorService.chat(messages, tools, mapper);
+                // chatStream transmite cada fragmento de texto al cliente vía
+                // SSE apenas el proveedor lo genera (streaming real), en vez
+                // de esperar la respuesta completa como antes.
+                JsonNode response = orchestratorService.chatStream(messages, tools, mapper, delta -> {
+                    try {
+                        sendEvent(emitter, "text", Map.of("text", delta));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
                 JsonNode choice    = response.path("choices").path(0);
                 JsonNode message   = choice.path("message");
                 JsonNode toolCalls = message.path("tool_calls");
@@ -185,11 +194,7 @@ public class AriaService {
                 boolean hasToolCalls = toolCalls.isArray() && !toolCalls.isEmpty();
 
                 if (!hasToolCalls || loops >= MAX_TOOL_LOOPS) {
-                    // Respuesta final de texto
-                    String text = message.path("content").asText("");
-                    if (!text.isBlank()) {
-                        sendEvent(emitter, "text", Map.of("text", text));
-                    }
+                    // El texto ya se transmitió en partes durante el streaming arriba.
                     sendEvent(emitter, "done", Map.of("done", true));
                     emitter.complete();
                     return;

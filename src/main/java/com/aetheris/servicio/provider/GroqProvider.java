@@ -13,6 +13,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Proveedor principal: Groq (API compatible con OpenAI).
@@ -74,6 +77,47 @@ public class GroqProvider implements AiProvider {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Llamada a Groq interrumpida", e);
+        }
+    }
+
+    @Override
+    public JsonNode chatStream(ArrayNode messages, ArrayNode tools, ObjectMapper mapper,
+                                Consumer<String> onDelta) {
+        if (!isAvailable()) {
+            throw new RuntimeException("GROQ_API_KEY no está configurada");
+        }
+        try {
+            ObjectNode body = mapper.createObjectNode();
+            body.put("model", model);
+            body.set("messages", messages);
+            body.set("tools", tools);
+            body.put("temperature", 0.1);
+            body.put("max_tokens", 4096);
+            body.put("stream", true);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.groq.com/openai/v1/chat/completions"))
+                    .timeout(Duration.ofSeconds(60))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+                    .build();
+
+            HttpResponse<Stream<String>> response =
+                    httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
+
+            if (response.statusCode() >= 400) {
+                String errBody = response.body().collect(Collectors.joining("\n"));
+                throw new RuntimeException("Groq error (" + response.statusCode() + "): " + errBody);
+            }
+
+            return OpenAiStreamUtil.consume(response.body(), mapper, onDelta);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Error de red al llamar a Groq: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Llamada a Groq interrumpida (stream)", e);
         }
     }
 }
