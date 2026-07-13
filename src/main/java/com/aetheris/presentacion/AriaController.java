@@ -4,6 +4,7 @@ import com.aetheris.dto.AriaChatRequest;
 import com.aetheris.modelo.Usuario;
 import com.aetheris.servicio.AriaService;
 import com.aetheris.servicio.AutenticacionService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,7 +31,15 @@ public class AriaController {
     /** POST /api/aria/chat — respuesta en streaming SSE (text/event-stream). */
     @PostMapping(value = "/chat", produces = "text/event-stream")
     public SseEmitter chat(@RequestBody AriaChatRequest req,
-                            @RequestHeader("Authorization") String auth) {
+                            @RequestHeader("Authorization") String auth,
+                            HttpServletResponse response) {
+        // Evita que proxies intermedios (Railway/Cloudflare/Nginx) bufferizen
+        // la respuesta esperando el cuerpo completo antes de reenviarla —
+        // sin esto, el streaming token por token puede llegar "de golpe" al
+        // cliente aunque el backend ya lo esté emitiendo en tiempo real.
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache, no-store, no-transform");
+
         Usuario usuario = autenticacionService.obtenerUsuarioPorToken(extraerToken(auth));
         SseEmitter emitter = new SseEmitter(120_000L);
         executor.submit(() -> ariaService.chat(req.getMessage(), req.getHistory(), usuario, emitter));
